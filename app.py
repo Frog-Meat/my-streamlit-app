@@ -43,13 +43,13 @@ if st.button("     "):
             response = client.responses.create(
                 model="gpt-4o-mini",
                 input=[
-                    {"role": "system", "content":    },
-                    {"role": "user", "content":    }
+                    {"role": "system", "content": sys_role},
+                    {"role": "user", "content": prompt}
                 ]
             )
 
             # 결과 출력
-            translated_text =
+            translated_text = response.output_text
 
-            st.subheader("     ")
-            st.success(     )
+            st.subheader("영어 번역 결과")
+            st.success(translated_text)
