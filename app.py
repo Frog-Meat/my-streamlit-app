@@ -7,7 +7,7 @@ import streamlit as st
 from openai import OpenAI
 
 from app_state import initialize_state, reset_state, save_response
-from assistant import DEFAULT_SYS_ROLE
+from assistant import ASSISTANT_BUILD, DEFAULT_SYS_ROLE
 from calendar_ui import render_calendar, render_todos
 from command_service import MissingInputError, run_command
 from meeting_planner import analyze_meeting, save_analysis
@@ -19,6 +19,7 @@ initialize_state()
 
 with st.sidebar:
     st.header("🤖 에이블")
+    st.caption(f"메일 처리 버전: {ASSISTANT_BUILD}")
     st.subheader("📥 회의록과 명령")
     uploaded_file = st.file_uploader(
         "회의록 텍스트 파일 (.txt)", type=["txt"],
@@ -49,7 +50,7 @@ with st.sidebar:
                     st.success(f"캘린더 {schedule_count}건, To-do {todo_count}건 등록")
 
     st.divider()
-    recipient_email = st.text_input("수신자 이메일 주소", value=os.getenv("GMAIL_ADDRESS", ""))
+    recipient_email = st.text_input("수신자 이메일 주소", value=os.getenv("RECIPIENT_EMAIL", ""))
     with st.expander("에이블 페르소나 (프롬프트)"):
         sys_role = st.text_area("시스템 역할", value=DEFAULT_SYS_ROLE, height=220)
     if st.button("대화 및 일정 초기화", use_container_width=True):
