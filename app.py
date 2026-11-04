@@ -1,4 +1,5 @@
 
+
 import os, json
 import smtplib
 from email.mime.text import MIMEText
@@ -71,7 +72,7 @@ tools = [{
 
 
 # ------------------------------------------------------------
-# 역할 지정 [미션 6 + 미션 7 역할을 합침]
+# 역할 지정 [미션 7 역할 + 미션 2 일반 질문 응답]
 # ------------------------------------------------------------
 sys_role = """
 당신은 '김 대리'의 개인 비서 '에이블'입니다.
@@ -86,8 +87,12 @@ sys_role = """
 7. 이메일 요청이 없다면 도구를 사용하지 않고 텍스트로만 답변.
 8. 이메일 본문에는 미팅 요약, 김 대리에게 배정된 업무의 내용을 함께 적는다.
 9. 미팅과 관계없는 질문에도 친절하게 답변한다.
+"""
+
+# 음성으로 답할 때만 추가하는 규칙 [미션 6 역할의 6번 그대로]
+voice_rule = """
 10. 답변은 음성으로 읽어줄 것이므로 마크다운 기호(#, *, - 등)나 표를 쓰지 않고,
-    자연스럽게 말하듯이 문장으로 작성한다.
+    자연스럽게 말하듯이 문장으로 작성합니다.
 """
 
 
@@ -95,7 +100,9 @@ sys_role = """
 # 상태 초기화 [02 교안 템플릿 / Streamlit 교안: 상태 키 초기화 패턴]
 # ------------------------------------------------------------
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = []     # LLM에 전달할 대화 기록
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = []     # 화면에 보여줄 대화 기록
 
 
 # ------------------------------------------------------------
@@ -109,13 +116,14 @@ with st.sidebar:
 
     if st.button("대화 초기화"):
         st.session_state.messages = []
+        st.session_state.chat_log = []
         st.rerun()
 
 
 # ------------------------------------------------------------
 # 이전 대화 출력 [Streamlit 교안: 챗봇 구현 예시]
 # ------------------------------------------------------------
-for message in st.session_state.messages:
+for message in st.session_state.chat_log:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
@@ -142,8 +150,13 @@ if submit:
         st.warning("음성을 녹음하거나 요청 내용을 입력해주세요.")
         st.stop()
 
+    # 음성으로 요청했는지 확인
+    # - 음성 요청 → 미션 6 방식 (요청 문장만 화면 표시, 답변은 음성으로만)
+    # - 글 요청   → 미션 2·3 방식 (답변을 화면에 텍스트로 출력)
+    voice_mode = audio_value is not None
+
     # 사용자 요청 만들기
-    if audio_value is not None:
+    if voice_mode:
         # STT: 음성 → 텍스트 [02 교안 템플릿]
         with st.spinner("음성을 인식하고 있습니다..."):
             transcript = client.audio.transcriptions.create(
@@ -153,12 +166,16 @@ if submit:
     else:
         user_text = text_value
 
-    # 사용자 요청 화면에 표시 (STT 결과로 음성 인식 정확성 확인) [프로젝트 교안 p.61]
+    # 요청 문장 화면에 표시 [미션 6: 녹음에서 추출한 텍스트는 화면에 표시]
     with st.chat_message("user"):
         st.markdown(user_text)
+    st.session_state.chat_log.append({"role": "user", "content": user_text})
 
     # 시스템 메세지 [02 교안 템플릿]
-    system_content = sys_role + f"\n\n김 대리 이메일 주소: {my_email}"
+    system_content = sys_role
+    if voice_mode:
+        system_content += voice_rule
+    system_content += f"\n\n김 대리 이메일 주소: {my_email}"
     if text:
         system_content += f"\n\n다음 미팅 내용을 참고하세요:\n[미팅 내용]\n{text}"
 
@@ -168,7 +185,7 @@ if submit:
 
     input_messages = [{"role": "system", "content": system_content}] + st.session_state.messages
 
-    # LLM 호출 및 응답 듣기
+    # LLM 호출
     with st.chat_message("assistant"):
         with st.spinner("답변을 준비하고 있습니다..."):
             try:
@@ -223,23 +240,27 @@ if submit:
                 # [Streamlit 교안: 챗봇 구현 예시의 예외 처리]
                 answer = f"오류가 발생했습니다: {e}"
 
-        # 응답 출력 (텍스트)
-        st.markdown(answer)
+        if voice_mode:
+            # [미션 6] 요약 결과는 화면에 출력하지 않고 음성으로만 출력
+            # TTS: 텍스트 → 음성 [미션 5·6]
+            # [변경] IPython의 Audio()는 Streamlit에서 동작하지 않으므로 st.audio()로 재생
+            with st.spinner("음성 답변을 만들고 있습니다..."):
+                try:
+                    speech_response = client.audio.speech.create(
+                        model="gpt-4o-mini-tts",
+                        voice="nova",
+                        input=answer
+                    )
+                    speech_response.stream_to_file("answer.mp3")
+                    st.audio("answer.mp3", autoplay=True)
+                except Exception as e:
+                    st.warning(f"음성 답변을 만들지 못했습니다: {e}")
+            st.session_state.chat_log.append({"role": "assistant", "content": "🔊 음성으로 답변했습니다."})
+        else:
+            # [미션 2·3] 답변을 화면에 텍스트로 출력
+            st.markdown(answer)
+            st.session_state.chat_log.append({"role": "assistant", "content": answer})
 
-        # TTS: 텍스트 → 음성 [미션 5]
-        # [변경] IPython의 Audio()는 Streamlit에서 동작하지 않으므로 st.audio()로 재생
-        with st.spinner("음성을 만들고 있습니다..."):
-            try:
-                speech_response = client.audio.speech.create(
-                    model="gpt-4o-mini-tts",
-                    voice="nova",
-                    input=answer
-                )
-                speech_response.stream_to_file("answer.mp3")
-                st.audio("answer.mp3", autoplay=True)
-            except Exception as e:
-                st.warning(f"음성 답변을 만들지 못했습니다: {e}")
-
-    # 답변 기록 저장
+    # 답변 기록 저장 (LLM에는 실제 답변 내용을 기억시킴)
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.session_state.messages = st.session_state.messages[-10:]
