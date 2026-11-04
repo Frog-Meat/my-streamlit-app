@@ -71,38 +71,60 @@ def run_assistant(client: OpenAI, sys_role: str, conversation_history: list, cur
     response_msg = response.choices[0].message
     email_status_msg = None
 
-    # 이메일 도구 호출이 발생한 경우 (출처: 6 - 미션 7)
+      # 이메일 도구 호출이 발생한 경우
     if response_msg.tool_calls:
+
+        # AI의 도구 요청 메시지는 한 번만 저장
+        messages.append(response_msg)
+
+        # 요청된 모든 도구를 처리
         for tool_call in response_msg.tool_calls:
-            if tool_call.function.name == "send_email":
-                args = json.loads(tool_call.function.arguments)
-                target_to = args.get("to") or default_recipient
+            try:
+                if tool_call.function.name == "send_email":
+                    args = json.loads(tool_call.function.arguments)
+                    target_to = args.get("to") or default_recipient
 
-                # 메일 전송 실행 (출처: 6 - 미션 1)
-                result = send_email(
-                    to=target_to,
-                    subject=args.get("subject", "미팅 요약 및 업무 보고"),
-                    body=args.get("body", "")
-                )
+                    # 메일 전송 실행
+                    result = send_email(
+                        to=target_to,
+                        subject=args.get("subject", "미팅 요약 및 업무 보고"),
+                        body=args.get("body", "")
+                    )
 
-                if result.get("status") == "success":
-                    email_status_msg = f"이메일 발송 완료: {target_to}"
+                    if result.get("status") == "success":
+                        email_status_msg = f"이메일 발송 완료: {target_to}"
+                    else:
+                        email_status_msg = (
+                            f"이메일 발송 실패: {result.get('error')}"
+                        )
+
                 else:
-                    email_status_msg = f"이메일 발송 실패: {result.get('error')}"
+                    result = {
+                        "status": "failed",
+                        "error": f"지원하지 않는 도구: {tool_call.function.name}"
+                    }
 
-                # 도구 실행 결과를 LLM에 전달하여 최종 답변 도출
-                messages.append(response_msg)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result)
-                })
+            except Exception as e:
+                result = {
+                    "status": "failed",
+                    "error": str(e)
+                }
+                email_status_msg = f"도구 실행 실패: {e}"
 
-                second_res = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages
-                )
-                return second_res.choices[0].message.content, email_status_msg
+            # 각 도구의 실행 결과를 반드시 저장
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(result, ensure_ascii=False)
+            })
+
+        # 모든 도구의 결과를 저장한 뒤 AI를 다시 호출
+        second_res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages
+        )
+
+        return second_res.choices[0].message.content, email_status_msg
 
     # 일반 응답 반환
     return response_msg.content, email_status_msg
