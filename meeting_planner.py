@@ -108,8 +108,10 @@ def add_todo(title: str, assignee: str = "", parent: str = ""):
     return True
 
 
-def save_analysis(analysis: dict, file_key: str) -> tuple[int, int]:
-    """유효한 날짜만 등록하고 같은 회의록을 중복 처리하지 않습니다."""
+def save_analysis(analysis: dict, file_key: str, include_todos: bool = False) -> tuple[int, int]:
+    """[고도화] 회의록의 날짜 있는 일정은 캘린더에 바로 등록합니다.
+    할 일은 '추천 To-do'에서 사용자가 골라 추가하도록 기본값을 False로 둡니다.
+    유효한 날짜만 등록하고 같은 회의록을 중복 처리하지 않습니다."""
     if file_key in st.session_state.analyzed_files:
         return 0, 0
     schedule_count = todo_count = 0
@@ -122,7 +124,7 @@ def save_analysis(analysis: dict, file_key: str) -> tuple[int, int]:
                 added_days.append(date.fromisoformat(item["date"]))
         except (ValueError, TypeError):
             questions.append(f"날짜 확인 필요: {item.get('title', '제목 없음')}")
-    for item in analysis["todos"]:
+    for item in (analysis["todos"] if include_todos else []):
         if add_todo(item["title"], item["assignee"], item["parent"]):
             todo_count += 1
     st.session_state.meeting_summary = analysis["summary"]
