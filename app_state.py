@@ -2,58 +2,74 @@
 
 import streamlit as st
 from datetime import datetime, timedelta, timezone
-from openai import OpenAI
 
 
 def korea_today():
     return datetime.now(timezone(timedelta(hours=9))).date()
 
 
-@st.cache_resource
-def get_client() -> OpenAI:
-    """OpenAI 클라이언트를 한 번만 만들어 재사용합니다."""
-    return OpenAI()
-
-
-DEFAULTS = {
-    "messages": list,
-    "meeting_content": lambda: "",
-    "meeting_file_id": lambda: None,
-    "audio_bytes": lambda: None,
-    "upload_version": lambda: 0,
-    "schedules": list,
-    "todos": list,
-    "selected_date": korea_today,
-    "calendar_year": lambda: korea_today().year,
-    "calendar_month": lambda: korea_today().month,
-    "meeting_summary": lambda: "",
-    "meeting_analysis": lambda: None,
-    "meeting_analysis_hash": lambda: None,
-    "calendar_recommendations": list,
-    "meeting_questions": list,
-    "analyzed_files": set,
-    # [고도화] 회의 요약 음성 자동 재생
-    "summary_audio": lambda: None,
-    "summary_autoplay": lambda: False,
-    # [고도화] 음성 입력 위젯 초기화·중복 처리 방지
-    "voice_version": lambda: 0,
-    "processed_voice": set,
-}
-
-
 def initialize_state() -> None:
-    for key, factory in DEFAULTS.items():
-        if key not in st.session_state:
-            st.session_state[key] = factory()
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "meeting_content" not in st.session_state:
+        st.session_state.meeting_content = ""
+    if "meeting_file_id" not in st.session_state:
+        st.session_state.meeting_file_id = None
+    if "audio_bytes" not in st.session_state:
+        st.session_state.audio_bytes = None
+    if "upload_version" not in st.session_state:
+        st.session_state.upload_version = 0
+    if "schedules" not in st.session_state:
+        st.session_state.schedules = []
+    if "todos" not in st.session_state:
+        st.session_state.todos = []
+    if "selected_date" not in st.session_state:
+        st.session_state.selected_date = korea_today()
+    if "calendar_year" not in st.session_state:
+        st.session_state.calendar_year = korea_today().year
+    if "calendar_month" not in st.session_state:
+        st.session_state.calendar_month = korea_today().month
+    if "meeting_summary" not in st.session_state:
+        st.session_state.meeting_summary = ""
+    if "meeting_summary_audio" not in st.session_state:
+        st.session_state.meeting_summary_audio = None
+    if "meeting_summary_audio_error" not in st.session_state:
+        st.session_state.meeting_summary_audio_error = ""
+    if "meeting_summary_autoplay" not in st.session_state:
+        st.session_state.meeting_summary_autoplay = False
+    if "meeting_analysis" not in st.session_state:
+        st.session_state.meeting_analysis = None
+    if "meeting_analysis_hash" not in st.session_state:
+        st.session_state.meeting_analysis_hash = None
+    if "calendar_recommendations" not in st.session_state:
+        st.session_state.calendar_recommendations = []
+    if "meeting_questions" not in st.session_state:
+        st.session_state.meeting_questions = []
+    if "analyzed_files" not in st.session_state:
+        st.session_state.analyzed_files = set()
 
 
 def reset_state() -> None:
-    upload_version = st.session_state.upload_version + 1
-    voice_version = st.session_state.voice_version + 1
-    for key, factory in DEFAULTS.items():
-        st.session_state[key] = factory()
-    st.session_state.upload_version = upload_version
-    st.session_state.voice_version = voice_version
+    st.session_state.messages.clear()
+    st.session_state.meeting_content = ""
+    st.session_state.meeting_file_id = None
+    st.session_state.audio_bytes = None
+    st.session_state.upload_version += 1
+    st.session_state.schedules.clear()
+    st.session_state.todos.clear()
+    st.session_state.meeting_summary = ""
+    st.session_state.meeting_summary_audio = None
+    st.session_state.meeting_summary_audio_error = ""
+    st.session_state.meeting_summary_autoplay = False
+    st.session_state.meeting_analysis = None
+    st.session_state.meeting_analysis_hash = None
+    st.session_state.calendar_recommendations = []
+    st.session_state.meeting_questions = []
+    st.session_state.analyzed_files.clear()
+    today = korea_today()
+    st.session_state.selected_date = today
+    st.session_state.calendar_year = today.year
+    st.session_state.calendar_month = today.month
 
 
 def save_response(user_prompt: str, answer: str, audio_bytes: bytes | None) -> None:
